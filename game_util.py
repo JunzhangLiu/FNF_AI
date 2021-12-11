@@ -11,45 +11,45 @@ import ctypes
 import ctypes.wintypes
 
 keyboard = Keyboard()
-class Game_process(object):
-    def __init__(self,path,cwd,stdout=subprocess.PIPE, stderr=subprocess.PIPE):
-        self.path = path
-        self.cwd = cwd
-        self.stdout = stdout
-        self.stderr = stderr
-        self.process = None
-    def start(self):
-        if self.process is None:
-            self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
-        else:
-            self.terminate()
-            self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
-        time.sleep(10)
-        self.pid = get_pid()
-        self.win_handle = get_win_handle(self.pid)
-        self.proc_handle = get_proc_handle(self.pid)
-        self.base = get_base_addr(self.proc_handle)
-        return self.pid, self.win_handle, self.proc_handle, self.base
-    def terminate(self):
-        if self.process is not None:
-            self.process.terminate()
-    def get_pid(self):
-        if self.process is None:
-            return None
-        return self.process.pid
-    def get_timer(self):
-        self.proc_handle = get_proc_handle(self.pid)
-        self.base = get_base_addr(self.proc_handle)
-        return get_time(self.proc_handle,self.base)
-    def is_responding(self):
-        cmd = 'tasklist /FI "PID eq %d" /FI "STATUS eq running"' % self.pid
-        status = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read()
-        return str(self.pid) in str(status)
-    def restart(self):
-        self.terminate()
-        return self.start()
+# class Game_process(object):
+#     def __init__(self,path,cwd,stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+#         self.path = path
+#         self.cwd = cwd
+#         self.stdout = stdout
+#         self.stderr = stderr
+#         self.process = None
+#     def start(self):
+#         if self.process is None:
+#             self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
+#         else:
+#             self.terminate()
+#             self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
+#         time.sleep(10)
+#         self.pid = get_pid()
+#         self.win_handle = get_win_handle(self.pid)
+#         self.proc_handle = get_proc_handle(self.pid)
+#         self.base = get_base_addr(self.proc_handle)
+#         return self.pid, self.win_handle, self.proc_handle, self.base
+#     def terminate(self):
+#         if self.process is not None:
+#             self.process.terminate()
+#     def get_pid(self):
+#         if self.process is None:
+#             return None
+#         return self.process.pid
+#     def get_timer(self):
+#         self.proc_handle = get_proc_handle(self.pid)
+#         self.base = get_base_addr(self.proc_handle)
+#         return get_time(self.proc_handle,self.base)
+#     def is_responding(self):
+#         cmd = 'tasklist /FI "PID eq %d" /FI "STATUS eq running"' % self.pid
+#         status = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read()
+#         return str(self.pid) in str(status)
+#     def restart(self):
+#         self.terminate()
+#         return self.start()
 
-def screenshot(handle,l=700,t=80,w=440,h=110):
+def screenshot(handle, l=700,t=80,w=440,h=105, arrow_width=105,blank=5):
     rect = win32gui.GetWindowRect(handle)
     # width, height = rect[2] - rect[0], rect[3] - rect[1]
     # l = 700
@@ -57,8 +57,6 @@ def screenshot(handle,l=700,t=80,w=440,h=110):
     # w = h = 440
     x = rect[0] + l
     y = rect[1] + t
-    img = ImageGrab.grab((x, y, x+w, y+h))
-    img = np.array(img,dtype=np.uint8)
     # context = win32gui.GetWindowDC(handle)
     # device_context=win32ui.CreateDCFromHandle(context)
     # compatible_device_context=device_context.CreateCompatibleDC()
@@ -76,6 +74,14 @@ def screenshot(handle,l=700,t=80,w=440,h=110):
     # compatible_device_context.DeleteDC()
     # win32gui.ReleaseDC(handle, context)
     # win32gui.DeleteObject(bit_map.GetHandle())
+    
+    img = ImageGrab.grab((x, y, x+w, y+h))
+    img = np.array(img,dtype=np.uint8)
+    arrows = []
+    for i in range(4):
+        start = (arrow_width+blank+2)*i
+        arrows.append(img[:,start:start+arrow_width])
+    img = np.array(arrows,dtype=np.uint8)
     return img
 
 def get_win_handle(pid):
@@ -95,56 +101,82 @@ def crop_img(img):
     return img.crop((l,t,l + w, t + h))
    
 def start_game(process):
+    if not process.is_responding():
+        return False
     time.sleep(7)
+    if not process.is_responding():
+        return False
+
     print("start_game")
-    keyboard.PressKey(ENTER)
-    time.sleep(0.5)
-    keyboard.ReleaseKey(ENTER)
-    if not process.is_responding():
-        return True
-
+    # keyboard.PressKey(ENTER)
+    # time.sleep(0.5)
+    # keyboard.ReleaseKey(ENTER)
+    # if not process.is_responding():
+    #     return False
+    crashed = process.menu_key(keyboard,ENTER)
+    if crashed:
+        return False
     time.sleep(2)
+    crashed = process.menu_key(keyboard,ENTER)
+    if crashed:
+        return False
 
-
-    keyboard.PressKey(ENTER)
-    time.sleep(0.5)
-    keyboard.ReleaseKey(ENTER)
-    if not process.is_responding():
-        return True
     time.sleep(7)
+
+    # keyboard.PressKey(ENTER)
+    # time.sleep(0.5)
+    # keyboard.ReleaseKey(ENTER)
+    # if not process.is_responding():
+        
+    #     return False
 
     return main_menu_to_song_list(process)
     
 
 def select_song(number,process):
     for i in range(number):
-        keyboard.PressKey(DOWN)
-        time.sleep(0.5)
-        keyboard.ReleaseKey(DOWN)
         if not process.is_responding():
-            return True
+            return False
+        crashed = process.menu_key(keyboard,DOWN)
+        if crashed:
+            return False
+
         time.sleep(3)
-    return False
+        # keyboard.PressKey(DOWN)
+        # time.sleep(0.5)
+        # keyboard.ReleaseKey(DOWN)
+        # if not process.is_responding():
+            
+        #     return False
+    return True
 
 
 def select_difficulty(difficulty,process):
     #impliment difficulty selection
     for i in range(difficulty):
-        keyboard.PressKey(RIGHT)
-        time.sleep(0.5)
-        keyboard.ReleaseKey(RIGHT)      
         if not process.is_responding():
-            return True
-
+            return False
+            
+        crashed = process.menu_key(keyboard,RIGHT)
+        if crashed:
+            return False
         time.sleep(3)
+    crashed = process.menu_key(keyboard,ENTER)
+    if crashed:
+        return False
+        # keyboard.PressKey(RIGHT)
+        # time.sleep(0.5)
+        # keyboard.ReleaseKey(RIGHT)      
+        # if not process.is_responding():
+        #     return False
 
-    keyboard.PressKey(ENTER)
-    time.sleep(0.5)
-    keyboard.ReleaseKey(ENTER)
-    if not process.is_responding():
-        return True
+    # keyboard.PressKey(ENTER)
+    # time.sleep(0.5)
+    # keyboard.ReleaseKey(ENTER)
+    # if not process.is_responding():
+    #     return False
 
-    return False
+    return True
     
 def exit_song(dead,process):
     if dead:
@@ -153,54 +185,63 @@ def exit_song(dead,process):
         time.sleep(0.5)
         keyboard.ReleaseKey(ENTER)     
         if not process.is_responding():
-            return True
+            return False
 
         time.sleep(10)
     keyboard.PressKey(ENTER)
     time.sleep(0.5)
     keyboard.ReleaseKey(ENTER)
     if not process.is_responding():
-        return True
+        return False
 
     time.sleep(1)
     keyboard.PressKey(DOWN)
     time.sleep(0.5)
     keyboard.ReleaseKey(DOWN)
     if not process.is_responding():
-        return True
+        return False
         
     time.sleep(1)
     keyboard.PressKey(DOWN)
     time.sleep(0.5)
     keyboard.ReleaseKey(DOWN)
     if not process.is_responding():
-        return True
+        return False
 
     time.sleep(1)
     keyboard.PressKey(ENTER)
     time.sleep(0.5)
     keyboard.ReleaseKey(ENTER)
     if not process.is_responding():
-        return True
+        return False
         
-    return False
+    return True
 
 def main_menu_to_song_list(process):
-    keyboard.PressKey(DOWN)
-    time.sleep(0.5)
-    keyboard.ReleaseKey(DOWN)
-    if not process.is_responding():
-        return True
-
+    
+    crashed = process.menu_key(keyboard,DOWN)
+    if crashed:
+        return False
     time.sleep(1)
-    keyboard.PressKey(ENTER)
-    time.sleep(0.5)
-    keyboard.ReleaseKey(ENTER)
-    if not process.is_responding():
-        return True
+    
+    crashed = process.menu_key(keyboard,ENTER)
+    if crashed:
+        return False
 
     time.sleep(10)
-    return False
+    # keyboard.PressKey(DOWN)
+    # time.sleep(0.5)
+    # keyboard.ReleaseKey(DOWN)
+    # if not process.is_responding():
+    #     return False
+
+    # keyboard.PressKey(ENTER)
+    # time.sleep(0.5)
+    # keyboard.ReleaseKey(ENTER)
+    # if not process.is_responding():
+    #     return False
+
+    return True
 
 
 def load_notes(song,difficulty):
@@ -259,26 +300,37 @@ def get_proc_handle(pid):
     #     raise Exception('Errcode {:d}'.format(err))
     return handle
 
-def get_base_addr(handle):
-    modules = win32process.EnumProcessModules(handle)
-    base_addr = modules[0]  
-    # err = ctypes.GetLastError()
-    # if err != 0:
-    #     raise Exception('Errcode {:d}'.format(err))
-    return base_addr
 
-def get_time(handle, base_addr):
-    timer_addr = 0xCC8748
-    addr = base_addr + timer_addr
-    buffer = ctypes.c_double()
-    bytesRead = ctypes.c_ulonglong()
-    ctypes.windll.kernel32.ReadProcessMemory.argtypes = [ctypes.wintypes.HANDLE,ctypes.wintypes.LPCVOID,ctypes.wintypes.LPVOID,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
-    ctypes.windll.kernel32.ReadProcessMemory(handle, addr, ctypes.byref(buffer), ctypes.sizeof(buffer), ctypes.byref(bytesRead))
-    timer = struct.unpack('d', buffer)
-    # err = ctypes.GetLastError()
-    # if err != 0:
-    #     raise Exception('Errcode {:d}'.format(err))
-    return buffer.value
+# def get_win_handle(pid):
+#     def _windowEnumerationHandler(windle_handle, results,pid):
+#         win_pid = win32process.GetWindowThreadProcessId(windle_handle)[1]
+#         if win_pid == pid:
+#             results.append((windle_handle, win32gui.GetWindowText(windle_handle), win32gui.GetClassName(windle_handle)))
+#     windows = []
+#     win32gui.EnumWindows(lambda x,y:_windowEnumerationHandler(x,y,pid), windows)
+#     win = [i for i in windows if i[2] == 'SDL_app']
+#     return win[0][0]
+
+# def get_base_addr(handle):
+#     modules = win32process.EnumProcessModules(handle)
+#     base_addr = modules[0]  
+#     # err = ctypes.GetLastError()
+#     # if err != 0:
+#     #     raise Exception('Errcode {:d}'.format(err))
+#     return base_addr
+
+# def get_time(handle, base_addr):
+#     timer_addr = 0xCC8748
+#     addr = base_addr + timer_addr
+#     buffer = ctypes.c_double()
+#     bytesRead = ctypes.c_ulonglong()
+#     ctypes.windll.kernel32.ReadProcessMemory.argtypes = [ctypes.wintypes.HANDLE,ctypes.wintypes.LPCVOID,ctypes.wintypes.LPVOID,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
+#     ctypes.windll.kernel32.ReadProcessMemory(handle, addr, ctypes.byref(buffer), ctypes.sizeof(buffer), ctypes.byref(bytesRead))
+#     timer = struct.unpack('d', buffer)
+#     # err = ctypes.GetLastError()
+#     # if err != 0:
+#     #     raise Exception('Errcode {:d}'.format(err))
+#     return buffer.value
 
 
 

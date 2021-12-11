@@ -2,56 +2,59 @@ import numpy as np
 import os
 from PIL import Image
 class Memory(object):
-    def __init__(self,w,h,c=3,img_per_sec=50):
+    def __init__(self,w,h,c=3,arrow_width = 105, blank = 5, img_per_sec=50,load = False):
         super(Memory,self).__init__()
-        self.memory = {}
+        self.memory = None
         self.w = h
         self.h = w
         self.c = c
+        self.arrow_width = arrow_width
+        self.blank = blank
         self.expanded = 0
-        self.current_song = None
         self.counter = 0
         self.length = -1
         self.img_per_sec = img_per_sec
 
         self.training_data_counter = 0
-        self.capacity = 30000
+        self.capacity = 50000*4
         self.base = 10
-        
-        self.training_data = (np.zeros((self.capacity,self.w,self.h,self.c),dtype=np.uint8),np.zeros((self.capacity,4),dtype=np.bool))
+        if load:
+            self.load()
+            self.capacity = self.training_data[0].shape[0]
+        else:
+            print("do not load")
+            self.training_data = (np.zeros((self.capacity,self.h,self.arrow_width,self.c),dtype=np.uint8),np.zeros((self.capacity,),dtype=np.bool))
 
 
     def start(self,song_name,length):
         self.expanded = 0
         length = 2*length*self.img_per_sec
         self.length = int(length)
-        self.current_song = song_name
-        # self.memory[song_name] = [(np.zeros((length,self.w,self.h)),np.zeros(length))]
-        self.memory[song_name] = ([np.zeros((self.length,self.w,self.h,self.c),dtype=np.uint8)],[np.zeros(self.length,dtype=np.float64)])
+        self.memory = ([np.zeros((self.length,4,self.w,self.h,self.c),dtype=np.uint8)],
+                        [np.zeros(self.length,dtype=np.float64)])
         self.counter = 0
     def expand(self):
         self.expanded += 1
         print("expanded {:d}, current img_per_sec is {:d}, consider increasing it".format(self.expanded,self.img_per_sec))
-        # self.memory[self.current_song].append((np.zeros((self.length,self.w,self.h)),np.zeros(self.length)))
-        self.memory[self.current_song][0].append(np.zeros((self.length,self.w,self.h,self.c),dtype=np.uint8))
-        self.memory[self.current_song][1].append(np.zeros(self.length,dtype=np.float64))
+        self.memory[0].append(np.zeros((self.length,4,self.w,self.h,self.c),dtype=np.uint8))
+        self.memory[1].append(np.zeros(self.length,dtype=np.float64))
     def store(self,img,time):
         if self.counter>=self.length:
             self.expand()
             self.counter = 0
-        self.memory[self.current_song][0][-1][self.counter] = img
-        self.memory[self.current_song][1][-1][self.counter] = time
+        self.memory[0][-1][self.counter] = img
+        self.memory[1][-1][self.counter] = time
         self.counter+=1
     def end(self):
-        self.memory[self.current_song][0][-1] = self.memory[self.current_song][0][-1][0:self.counter]
-        self.memory[self.current_song][1][-1] = self.memory[self.current_song][1][-1][0:self.counter]
+        self.memory[0][-1] = self.memory[0][-1][0:self.counter]
+        self.memory[1][-1] = self.memory[1][-1][0:self.counter]
 
-        self.memory[self.current_song] = (np.concatenate(self.memory[self.current_song][0]),np.concatenate(self.memory[self.current_song][1]))
+        self.memory = (np.concatenate(self.memory[0]),np.concatenate(self.memory[1]))
 
     def compute_ground_truth(self,notes):
         if self.counter < 50:
             return
-        img,time_of_img = self.memory[self.current_song]
+        img,time_of_img = self.memory
         game_end_time,end_idx = time_of_img[-1],time_of_img.shape[0]-1
         ground_truth = np.zeros((time_of_img.shape[0],4),dtype=np.bool)
         for section in notes:
@@ -64,7 +67,7 @@ class Memory(object):
                         continue
                     duration = note[2]/1000
                     note_start_dist = np.abs(time_of_img-note_start_time)
-                    note_start_idx = np.argmin(note_start_dist)
+                    note_start_idx = np.argmin(note_start_dist)-1
                     note_end_idx = note_start_idx+1
                     if duration:
                         note_end = np.abs(time_of_img-note_start_time-duration)
@@ -75,7 +78,6 @@ class Memory(object):
         # self.memory[self.current_song] = (img_with_key,ground_truth[ground_truth.sum(axis=1)>=1],img_without_key)
         x = np.concatenate([img_with_key,
                                 img_without_key[np.random.choice(img_without_key.shape[0],size=img_with_key.shape[0]*2+self.base)]])
-            
         y = np.zeros((x.shape[0],4),dtype=np.bool)
         y[0:img_with_key.shape[0]] = ground_truth[ground_truth.sum(axis=1)>=1]
         training_data_x,training_data_y = self.training_data
@@ -83,10 +85,20 @@ class Memory(object):
         start = self.training_data_counter%self.capacity
         length = min(self.capacity-self.training_data_counter%self.capacity,x.shape[0])
         end = start + length
-        training_data_x[start:end] += x[:length]
-        training_data_y[start:end] += y[:length]
-        del self.memory[self.current_song]
-        self.training_data_counter += self.counter
+        for i in range(4):
+            training_data_x[start:end] += x[:,i]
+            training_data_y[start:end] += y[:,i]
+            start = end
+            end += length
+        # training_data_x[start:end] += 
+        # for i in range(4):
+        #     arrow_left = (self.arrow_width + self.blank)*i
+        #     training_data_x[start:end] += x[:length,:,arrow_left:arrow_left+self.arrow_width]
+        #     training_data_y[start:end] += y[:length,i]
+        #     start += length
+        #     end += length
+        # del self.memory[self.current_song]
+        self.training_data_counter += length*4
     def get_data(self):
         return self.training_data[0][:min(self.capacity,self.training_data_counter)],self.training_data[1][:min(self.capacity,self.training_data_counter)]
     def get_data_size(self):
@@ -99,10 +111,17 @@ class Memory(object):
         np.save(path+"y", self.training_data[1])
         return 
     def load(self):
+        print("loading data")
         path = "./memory/"
-        self.training_data = (np.load(path+"x.npy"),np.load(path+"y.npy"))
-        with open('./memory/counter.txt', "r") as myfile:
-            self.training_data_counter = int(myfile.read())
+        try:
+            self.training_data = (np.load(path+"x.npy"),np.load(path+"y.npy"))
+            with open('./memory/counter.txt', "r") as myfile:
+                self.training_data_counter = int(myfile.read())
+        except Exception as e:
+            print(e)
+            print("load memory failed, restart")
+            self.training_data = (np.zeros((self.capacity*4,self.h,self.arrow_width,self.c),dtype=np.uint8),np.zeros((self.capacity,),dtype=np.bool))
+            self.training_data_counter = 0
 
 
     
