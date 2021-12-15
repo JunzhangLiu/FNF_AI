@@ -1,4 +1,5 @@
 import imp
+from numpy.lib.function_base import disp
 from game_process import Game_process
 # from get_time import get_time
 from mem import *
@@ -10,11 +11,7 @@ import random
 from model import FNF_Visual
 import tensorflow as tf
 from tensorflow import keras
-import win32gui, win32process, win32ui, win32con, win32api
-import struct
-import ctypes
-import ctypes.wintypes
-
+from song_itr import Song_iterator
 save_frequency = 10
 training_start = 10000
 #Crop Param
@@ -25,7 +22,7 @@ h=105
 lr = 0.1
 arrow_width = 105
 blank = 5
-
+channels = 1
 model = FNF_Visual()
 load = True
 ckpt = tf.train.Checkpoint(model)
@@ -33,79 +30,82 @@ if load:
     ckpt.read("./saved_model/model")
 optimizer = keras.optimizers.Adam(learning_rate=lr)
 model.compile(optimizer=optimizer,loss=tf.keras.losses.BinaryCrossentropy(),metrics=['accuracy'])
+iterator = Song_iterator()
 
-model(np.zeros((1,arrow_width,h,3)))
+model(np.zeros((1,arrow_width,h,channels)))
 keyboard = Keyboard()
 
 
-mem = Memory(arrow_width,h, load = load)
-process = Game_process('D:\\ai\\fnf\\game\\Funkin.exe',"D:\\ai\\fnf\\game",stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+mem = Memory(arrow_width,h,c=channels, load = load)
+process = Game_process('D:\\ai\\fnf\\game\\Funkin.exe',"D:\\ai\\fnf\\game")
 
-song_list = json.load(open("song_list.json"))["list"]
+# song_list = json.load(open("song_list.json"))["list"]
 i = 0
 data_size = mem.get_data_size()
 game_crashed = False
 
 while True:
-    pid,win_handle,proc_handle, base_addr=process.restart()
+    pid,win_handle,proc_handle, base_addr,screenshot_args=process.restart()
     success = start_game(process)
     while not success:
         success = start_game(process)
-        pid,win_handle,proc_handle, base_addr=process.restart()
+        pid,win_handle,proc_handle, base_addr,screenshot_args=process.restart()
         time.sleep(6)
     game_crashed = False
 
     # song = song_list[0]
-    song = song_list[random.randrange(len(song_list)-3)]
-    # song = song_list[0]
-    name,number = list(song.items())[0]
-    difficulties = song['difficulties']
-    difficulty = random.randrange(0,2)
+    # song = song_list[random.randrange(len(song_list)-3)]
+    # # song = song_list[4]
+    # name,number = list(song.items())[0]
+    # difficulties = song['difficulties']
+    # difficulty = random.randrange(0,2)
 
 
-    file_name = difficulties[difficulty]
-    length_in_millisec = song_length(name,file_name)
+    # file_name = difficulties[difficulty]
+    # length_in_millisec = song_length(name,file_name)
+
+    song_name,number,level,length_in_millisec=iterator.get_next_song_info()
     length_in_sec = length_in_millisec/1000
-    print(file_name,difficulty)
+    print('song name: {:s}, level: {:d}, length: {:f}'.format(song_name,level,length_in_sec))
     success = select_song(number,process)
+
     if not success:
         game_crashed = True
         continue
 
-    mem.start(name,length_in_sec)
+    mem.start(length_in_sec)
 
-    success = select_difficulty(difficulty,process)
+    success = select_level(level,process)
     if not success:
         game_crashed = True
         continue
-
 
     print("game_start")
     dead = False
-    timer0 = timer = process.get_time()
-    while timer0-timer==0 and not game_crashed:
-        timer = process.get_time()
-        success = process.is_responding()
-        if not success:
-            game_crashed = True
+    timer0 = process.get_time()
 
-    while timer<1000 and not game_crashed:
-        timer = process.get_time()
-        success = process.is_responding()
-        if not success:
-            game_crashed = True
+    game_crashed=while_wait(lambda timer: timer0-timer==0, lambda : process.get_time(), process)
+
+    game_crashed=while_wait(lambda timer: timer<2000, lambda : process.get_time(), process)
+
+    j = 0
+    display = 50
+    timer0 = timer = process.get_time()
     while timer<length_in_millisec and not dead and not game_crashed:
-        start = time.time()
         timer = process.get_time()
         # print(timer)
-        img = screenshot(win_handle, l=l,t=t,w=w,h=h)
-        mem.store(img,timer/1000)
+        img = screenshot(screenshot_args, l=l,t=t,w=w,h=h,channels=channels)
         dead = np.average(img) < 3
+        
+        if timer-timer0<15:
+            continue
+
+        mem.store(img,timer/1000)
         action = model(img)
-        # print(timer,action)
+        
         for idx, a in enumerate(action):
             current_keycode = GAME_KEYS[idx]
-            noise = random.randrange(0,1000)
+            noise = random.randrange(0,10000)
             if noise < 2:
                 if keyboard.pressed(current_keycode):
                     print('random key release {:d}'.format(idx))
@@ -123,9 +123,7 @@ while True:
             elif keyboard.pressed(current_keycode):
                     print('key release {:d}'.format(idx))
                     keyboard.ReleaseKey(current_keycode)
-
-        # print(time.time()-start)
-
+        timer0=timer
     keyboard.release_all_keys()
     print('game over')
 
@@ -133,13 +131,13 @@ while True:
         continue
 
     mem.end()
-    notes = load_notes(name,file_name)
+    notes = iterator.get_sections()
     mem.compute_ground_truth(notes)
     data_size = mem.get_data_size()
     print(data_size)
     if data_size >= training_start:
         x,y = mem.get_data()
-        model.fit(x,y,batch_size=128,epochs=min(10,data_size//10000))
+        model.fit(x,y,batch_size=128,epochs=min(5,data_size//10000))
     print(i)
     if i%save_frequency == 0:
         print('saving')
