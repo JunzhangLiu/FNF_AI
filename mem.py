@@ -26,7 +26,7 @@ class Memory(object):
             self.training_data = (np.zeros((self.capacity,self.h,self.arrow_width,self.c),dtype=np.uint8),np.zeros((self.capacity,),dtype=np.bool))
 
 
-    def start(self,song_name,length):
+    def start(self,length):
         self.expanded = 0
         length = 2*length*self.img_per_sec
         self.length = int(length)
@@ -46,10 +46,15 @@ class Memory(object):
         self.memory[1][-1][self.counter] = time
         self.counter+=1
     def end(self):
-        self.memory[0][-1] = self.memory[0][-1][0:self.counter]
-        self.memory[1][-1] = self.memory[1][-1][0:self.counter]
-
+        self.counter-=1
+        if self.counter>0:
+            self.memory[0][-1] = self.memory[0][-1][0:self.counter]
+            self.memory[1][-1] = self.memory[1][-1][0:self.counter]
+        else:
+            self.memory[0].pop(-1)
+            self.memory[1].pop(-1)
         self.memory = (np.concatenate(self.memory[0]),np.concatenate(self.memory[1]))
+        
 
     def compute_ground_truth(self,notes):
         if self.counter < 50:
@@ -75,30 +80,19 @@ class Memory(object):
                     ground_truth[note_start_idx:note_end_idx,note_type] = 1
         img_with_key = img[ground_truth.sum(axis=1)>=1]
         img_without_key = img[ground_truth.sum(axis=1)==0]
-        # self.memory[self.current_song] = (img_with_key,ground_truth[ground_truth.sum(axis=1)>=1],img_without_key)
         x = np.concatenate([img_with_key,
                                 img_without_key[np.random.choice(img_without_key.shape[0],size=img_with_key.shape[0]*2+self.base)]])
         y = np.zeros((x.shape[0],4),dtype=np.bool)
         y[0:img_with_key.shape[0]] = ground_truth[ground_truth.sum(axis=1)>=1]
         training_data_x,training_data_y = self.training_data
         
-        start = self.training_data_counter%self.capacity
-        length = min(self.capacity-self.training_data_counter%self.capacity,x.shape[0])
-        end = start + length
         for i in range(4):
+            start = self.training_data_counter%self.capacity
+            length = min(self.capacity-self.training_data_counter%self.capacity,x.shape[0])
+            end = start + length
             training_data_x[start:end] += x[:,i]
             training_data_y[start:end] += y[:,i]
-            start = end
-            end += length
-        # training_data_x[start:end] += 
-        # for i in range(4):
-        #     arrow_left = (self.arrow_width + self.blank)*i
-        #     training_data_x[start:end] += x[:length,:,arrow_left:arrow_left+self.arrow_width]
-        #     training_data_y[start:end] += y[:length,i]
-        #     start += length
-        #     end += length
-        # del self.memory[self.current_song]
-        self.training_data_counter += length*4
+            self.training_data_counter += length
     def get_data(self):
         return self.training_data[0][:min(self.capacity,self.training_data_counter)],self.training_data[1][:min(self.capacity,self.training_data_counter)]
     def get_data_size(self):

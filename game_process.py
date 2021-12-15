@@ -30,7 +30,8 @@ class Game_process(object):
 
         modules = win32process.EnumProcessModules(self.proc_handle)
         self.base = modules[0]  
-        return self.pid, self.win_handle, self.proc_handle, self.base
+        dc = self.get_screenshot_args()
+        return self.pid, self.win_handle, self.proc_handle, self.base,dc
     def terminate(self):
         if self.process is not None:
             self.process.terminate()
@@ -63,6 +64,8 @@ class Game_process(object):
         timer_addr = 0xCC8748
         return self.get_addr_val(timer_addr,t='d')
 
+    
+
     def get_addr_val(self,addr, t = 'd'):
         addr = self.base + addr
         types,byte = self.type_to_ctype[t]
@@ -88,7 +91,7 @@ class Game_process(object):
             crashed = not self.recovered()
         return crashed
     
-    def recovered(self,time_out = 10, wait = 0.5):
+    def recovered(self,time_out = 10, wait = 5):
         for i in range(time_out):
             time.sleep(wait)
             if self.is_responding():
@@ -102,5 +105,17 @@ class Game_process(object):
         if not self.is_responding():
             return False
         return True
+
+    def get_screenshot_args(self):
+        dc = win32gui.GetWindowDC(self.win_handle)
+        dc_obj=win32ui.CreateDCFromHandle(dc)
+        c_dc=dc_obj.CreateCompatibleDC()
+        args = {}
+        args['handle'] = self.win_handle
+        args['dc'] = dc
+        args['dc_obj'] = dc_obj
+        args['c_dc'] = c_dc
+        return args
+        
 
         

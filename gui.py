@@ -15,16 +15,15 @@ from win32api import GetSystemMetrics
 
 
 class GUI(QMainWindow):
-    def __init__(self,win_handle,model,keyboard,x,y,wid=50,ht=300,sl=700,st=80,sw=450,sh=105):
+    def __init__(self,screenshot_args,model,keyboard,x,y,wid=50,ht=300,sl=700,st=80,sw=450,sh=105,channels = 1):
         super(GUI,self).__init__()
         self.setGeometry(x,y,wid,ht)
-        self.wid = wid
-        self.ht=ht
-        self.win_handle = win_handle
         self.model = model
         self.running = False
         self.sl,self.st,self.sw,self.sh = sl,st,sw,sh
         self.keyboard = keyboard
+        self.screenshot_args = screenshot_args
+        self.channels = channels
         self.model_thread = threading.Thread(target=self.run_ai)
         self.init_ui()
         
@@ -43,7 +42,7 @@ class GUI(QMainWindow):
         print("started")
         self.running = True
         while self.running:
-            img = screenshot(self.win_handle, l=self.sl,t=self.st,w=self.sw,h=self.sh)
+            img = screenshot(self.screenshot_args, l=self.sl,t=self.st,w=self.sw,h=self.sh,channels=self.channels)
             action = tf.reshape(self.model(img),[4])
             if tf.reduce_max(action)>0.9:
                 print('y =',tf.reshape(action,[4]),end=" ")
@@ -67,18 +66,19 @@ class GUI(QMainWindow):
             print("stopped")
 pid = get_pid()
 handle = get_win_handle(pid)
+args = get_screenshot_args(handle)
 model = FNF_Visual()
 load = True
 ckpt = tf.train.Checkpoint(model)
 if load:
     ckpt.read("./saved_model/model")
-print(model(np.zeros((4,105,105,3))))
+print(model(np.zeros((4,105,105,1))))
 keyboard = Keyboard()
 wid = 50
 ht = 300
 app = qa(sys.argv)
 rect = win32gui.GetWindowRect(handle)
 print(rect)
-gui = GUI(handle,model,keyboard,min(GetSystemMetrics(0)-wid*3,rect[2]),min(GetSystemMetrics(1)-ht*3,rect[1]),wid=50,ht=300)
+gui = GUI(args,model,keyboard,min(GetSystemMetrics(0)-wid*3,rect[2]),min(GetSystemMetrics(1)-ht*3,rect[1]),wid=50,ht=300)
 sys.exit(app.exec_())
 

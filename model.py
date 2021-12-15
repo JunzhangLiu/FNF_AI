@@ -8,15 +8,15 @@ class FNF_Visual(keras.Model):
         super(FNF_Visual,self).__init__()
         self.net = keras.Sequential([
                                 keras.layers.BatchNormalization(),
-                                keras.layers.Conv2D(128, (3,3),strides = (2,2), padding = 'valid'),
+                                keras.layers.Conv2D(64, (3,3),strides = (2,2), padding = 'valid'),
                                 keras.layers.BatchNormalization(),
                                 keras.layers.ReLU(),
 
-                                keras.layers.Conv2D(64, (3,3),strides = (1,1), padding = 'valid'),
+                                keras.layers.Conv2D(32, (3,3),strides = (1,1), padding = 'valid'),
                                 keras.layers.BatchNormalization(),
                                 keras.layers.ReLU(),
                                 
-                                keras.layers.Conv2D(32, (3,3),strides = (1,1), padding = 'valid'),
+                                keras.layers.Conv2D(16, (3,3),strides = (1,1), padding = 'valid'),
                                 keras.layers.BatchNormalization(),
                                 keras.layers.ReLU(),
 
