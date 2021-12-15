@@ -86,4 +86,3 @@ def keyboard_thread_f(queue):
         else:
             keyboard.ReleaseKey(key)
         keyboard.send_input()
-

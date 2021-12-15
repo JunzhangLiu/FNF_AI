@@ -12,7 +12,7 @@ class Game_process(object):
         self.stdout = stdout
         self.stderr = stderr
         self.process = None
-        self.type_to_ctype = {'d':(ctypes.c_double,ctypes.c_ulonglong)}
+        self.type_to_ctype = {'d':(ctypes.c_double,ctypes.c_ulonglong),'int':(ctypes.c_int,ctypes.c_ulonglong)}
         
     def start(self):
         if self.process is None:
@@ -20,7 +20,8 @@ class Game_process(object):
         else:
             self.terminate()
             self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
-        time.sleep(10)
+        # time.sleep(10)
+        time.sleep(1)
         self.pid = self.process.pid
 
         self.win_handle = self.get_win_handle()
@@ -31,7 +32,7 @@ class Game_process(object):
         modules = win32process.EnumProcessModules(self.proc_handle)
         self.base = modules[0]  
         dc = self.get_screenshot_args()
-        return self.pid, self.win_handle, self.proc_handle, self.base,dc
+        return dc
     def terminate(self):
         if self.process is not None:
             self.process.terminate()
@@ -63,8 +64,10 @@ class Game_process(object):
     def get_time(self):
         timer_addr = 0xCC8748
         return self.get_addr_val(timer_addr,t='d')
+    def get_status(self):
+        status_addr = 0xCCCF30
+        return self.get_addr_val(status_addr,t='int')
 
-    
 
     def get_addr_val(self,addr, t = 'd'):
         addr = self.base + addr

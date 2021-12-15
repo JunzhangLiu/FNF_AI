@@ -43,7 +43,7 @@ class GUI(QMainWindow):
         self.running = True
         while self.running:
             img = screenshot(self.screenshot_args, l=self.sl,t=self.st,w=self.sw,h=self.sh,channels=self.channels)
-            action = tf.reshape(self.model(img),[4])
+            action = tf.reshape(self.model(img),[4]).numpy()
             if tf.reduce_max(action)>0.9:
                 print('y =',tf.reshape(action,[4]),end=" ")
             for idx, a in enumerate(action):
