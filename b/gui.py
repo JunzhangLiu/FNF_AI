@@ -26,8 +26,7 @@ class GUI(QMainWindow):
         self.screenshot_args = screenshot_args
         self.channels = channels
         self.img_scale = 1/2
-        # self.model_thread = threading.Thread(target=self.run_ai)
-        self.img_q = Queue()
+        self.model_thread = threading.Thread(target=self.run_ai)
         self.init_ui()
         
     def init_ui(self):
@@ -40,8 +39,7 @@ class GUI(QMainWindow):
     def init_button(self):
         self.run = qw.QPushButton('start', self)
         self.run.move(10,140)
-        # self.run.clicked.connect(self.model_thread.start)
-        self.run.clicked.connect(self.run_ai)
+        self.run.clicked.connect(self.model_thread.start)
 
         self.stop = qw.QPushButton('end', self)
         self.stop.move(10,180)
@@ -121,6 +119,11 @@ class GUI(QMainWindow):
             print('thread not started')
         else:        
             self.running = False
+            self.model_thread.join()
+            self.keyboard.release_all_keys()
+            self.model_thread = threading.Thread(target=self.run_ai)
+            self.run.clicked.connect(self.model_thread.start)
+            print("stopped")
 try:
     pid = get_pid()
     handle = get_win_handle(pid)
