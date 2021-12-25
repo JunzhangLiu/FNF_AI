@@ -1,7 +1,4 @@
 import ctypes
-import time
-# import threading
-# import sys
 SendInput = ctypes.windll.user32.SendInput
 
 ENTER = 0x1C
@@ -9,6 +6,7 @@ UP = 0xC8
 LEFT = 0xCB
 RIGHT = 0xCD
 DOWN = 0xD0
+ESC = 0x01
 GAME_KEYS = [LEFT,DOWN,UP,RIGHT]
 
 PUL = ctypes.POINTER(ctypes.c_ulong)
@@ -43,7 +41,7 @@ class Input(ctypes.Structure):
 
 class Keyboard(object):
     def __init__(self):
-        self.pressed_keys = {ENTER:0, UP:0, LEFT:0,RIGHT:0,DOWN:0}
+        self.pressed_keys = {ENTER:0, ESC:0, UP:0, LEFT:0,RIGHT:0,DOWN:0}
     def PressKey(self,key):
         if self.pressed_keys[key]:
             return
@@ -77,12 +75,3 @@ class Keyboard(object):
             if self.pressed_keys[key]:
                 self.ReleaseKey(key)
 
-def keyboard_thread_f(queue):
-    keyboard = Keyboard()
-    while True:
-        ud, key = queue.get()
-        if ud:
-            keyboard.hold_key(key)
-        else:
-            keyboard.ReleaseKey(key)
-        keyboard.send_input()

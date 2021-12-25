@@ -1,11 +1,8 @@
-import imp
-from numpy.lib.function_base import disp
 from game_process import Game_process
 from mem import *
 import time
 from model import *
 from game_util import *
-import random
 from model import FNF_Visual
 import tensorflow as tf
 from tensorflow import keras
@@ -85,13 +82,10 @@ while True:
         action = tf.reshape(action,[4]).numpy()
             
         if data_size >= training_start:
-            # if action.max() > 0.9:
-            #     print(timer,action)
             for idx, a in enumerate(action):
                 current_keycode = GAME_KEYS[idx]
                 if a > 0.9:
                     keyboard.PressKey(current_keycode)
-                    # print('key {:d} pressed by program'.format(idx))
                 else:
                     keyboard.ReleaseKey(current_keycode)
 
@@ -114,7 +108,7 @@ while True:
     if i%save_frequency == 0:
         print('saving')
         mem.save()
-        ckpt.write("./saved_model/model")
+        ckpt.write('./saved_model/model')
     i+=1
 
 

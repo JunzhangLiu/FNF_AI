@@ -1,27 +1,24 @@
 import subprocess
 import win32gui, win32process, win32ui, win32con, win32api
-from win32com.client import GetObject
-import struct
 import ctypes
 import ctypes.wintypes
 import time
 class Game_process(object):
-    def __init__(self,path,cwd,stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    def __init__(self,path,cwd,stdin=None,stdout=subprocess.PIPE, stderr=subprocess.PIPE):
         self.path = path
         self.cwd = cwd
         self.stdout = stdout
         self.stderr = stderr
+        self.stdin = stdin
         self.process = None
         self.type_to_ctype = {'d':(ctypes.c_double,ctypes.c_ulonglong),'int':(ctypes.c_int,ctypes.c_ulonglong)}
         
     def start(self):
         if self.process is None:
-            self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
+            self.process = subprocess.Popen([self.path],stdin = self.stdin, stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
         else:
             self.terminate()
-            self.process = subprocess.Popen([self.path],stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
-        # time.sleep(10)
-        time.sleep(1)
+            self.process = subprocess.Popen([self.path],stdin = self.stdin, stdout=self.stdout, stderr=self.stderr,cwd=self.cwd)
         self.pid = self.process.pid
 
         self.win_handle = self.get_win_handle()
@@ -51,14 +48,24 @@ class Game_process(object):
         self.terminate()
         return self.start()
 
-    def get_win_handle(self):
-        def _windowEnumerationHandler(windle_handle, results,pid):
+    def get_win_handle(self,timeout = 10):
+        def enum_window(windle_handle, results,pid):
             win_pid = win32process.GetWindowThreadProcessId(windle_handle)[1]
             if win_pid == pid:
                 results.append((windle_handle, win32gui.GetWindowText(windle_handle), win32gui.GetClassName(windle_handle)))
         windows = []
-        win32gui.EnumWindows(lambda x,y:_windowEnumerationHandler(x,y,self.pid), windows)
+        win32gui.EnumWindows(lambda x,y:enum_window(x,y,self.pid), windows)
         win = [i for i in windows if i[2] == 'SDL_app']
+        tries = 0
+        while tries<timeout and len(win)==0:
+            print('window not opend, try {:d}/{:d}'.format(tries,timeout),end='\r')
+            time.sleep(1)
+            win32gui.EnumWindows(lambda x,y:enum_window(x,y,self.pid), windows)
+            win = [i for i in windows if i[2] == 'SDL_app']
+            tries += 1
+        if len(windows)==0:
+            raise Exception('failed to find window')
+        
         return win[0][0]
 
     def get_time(self):

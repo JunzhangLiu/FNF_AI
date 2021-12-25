@@ -4,6 +4,7 @@ from win32com.client import GetObject
 import numpy as np
 import ctypes
 import ctypes.wintypes
+import time
 
 
 def screenshot(args, l=700,t=80,w=440,h=105, arrow_width=105,blank=5,channels=3):
@@ -35,23 +36,33 @@ def wait_for(callback,process,fun = (lambda x,args:x),args=None):
             game_crashed = not process.recovered()
     return game_crashed
 
-def get_win_handle(pid):
-    def _windowEnumerationHandler(windle_handle, results,pid):
+def get_win_handle(pid,timeout = 10):
+    def enum_window(windle_handle, results,pid):
         win_pid = win32process.GetWindowThreadProcessId(windle_handle)[1]
         if win_pid == pid:
             results.append((windle_handle, win32gui.GetWindowText(windle_handle), win32gui.GetClassName(windle_handle)))
     windows = []
-    win32gui.EnumWindows(lambda x,y:_windowEnumerationHandler(x,y,pid), windows)
+    win32gui.EnumWindows(lambda x,y:enum_window(x,y,pid), windows)
+    tries = 0
+    while tries<timeout and len(windows)==0:
+        print('window not opend, try {:d}/{:d}'.format(tries,timeout),end='\r')
+        time.sleep(1)
+        win32gui.EnumWindows(lambda x,y:enum_window(x,y,pid), windows)
+        tries+=1
+    print()
     win = [i for i in windows if i[2] == 'SDL_app']
     return win[0][0]
     
 def get_pid(name="Funkin.exe"):
     WMI = GetObject('winmgmts:')
     processes = WMI.InstancesOf('Win32_Process')
+    pid = None
     for p in processes:
         if (str(p.Properties_("Name").Value) == name):
             pid = p.Properties_("ProcessID").Value
             break
+    if pid is None:
+        raise Exception('cannot find process')
     return pid
 
 def get_proc_handle(pid):

@@ -1,12 +1,11 @@
 from game_util import wait_for
 from keys import *
-
+import time
 def press_when(callback,key,process,keyboard,fun = (lambda x,args:x), args=None):
     wait_for(callback,process,fun=fun,args=args)
     return process.menu_key(keyboard,key)
 
 def start_game(process,keyboard):
-    print("start_game")
     crashed = press_when((lambda: process.get_status() != 0),ENTER,process,keyboard)
     if crashed:
         return False
@@ -52,7 +51,15 @@ def main_menu_to_song_list(process,keyboard):
     if crashed:
         return False
     time.sleep(1)
-    
+    i,j = 0,0
+    while i < 1000 or j < 100:
+        if process.get_status() == 2:
+            j+=1
+        else:
+            j = 0
+        i+=1
+    if process.get_status()==2:
+        process.menu_key(keyboard,ESC)
     crashed = press_when(process.get_status,DOWN,process,keyboard,fun=(lambda x,args: inc(x,args)[0]>10), args=[0,3])
     if crashed:
         return False
